@@ -1,0 +1,11 @@
+torch==2.4.0
+torchvision
+tensorrt==10.3.0
+transformers==4.36.0
+onnx
+onnxscript
+onnxruntime
+datasets
+polygraphy
+onnx_graphsurgeon
+numpy

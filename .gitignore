@@ -1,0 +1,7 @@
+*.trt
+*.onnx
+*.onnx.data
+__pycache__/
+*.pyc
+plugin/build/
+results/*.nsys-rep
