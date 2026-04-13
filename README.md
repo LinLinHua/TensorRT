@@ -1,4 +1,3 @@
-cat > README.md << 'EOF'
 # TensorRT-Accelerated BERT Inference Engine
 
 High-performance inference optimization for BERT-base on NVIDIA T4 using TensorRT FP16/INT8 PTQ, custom CUDA plugins, and multi-profile engine optimization.
