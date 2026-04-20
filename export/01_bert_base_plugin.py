@@ -93,7 +93,7 @@ def find_gelu_subgraphs(graph):
             nodes_to_remove = [node, add_node, erf_node, div_or_mul]
             
             gelu_subgraphs.append((gelu_input, gelu_output, nodes_to_remove))
-            visited.add(id(node))
+            visited.add(id(node))#use id is more accurate, we aren't sure how graph surgeon (onnx graph define)
             
         except Exception as e:
             continue

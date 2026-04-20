@@ -7,11 +7,12 @@ __global__ void bias_gelu_kernel(
     float* data,           // in-place: MatMul output, also output
     const float* bias,     // bias vector [N]
     int M, int N)
-{
+{   
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total = M * N;
-    if (idx >= total) return;
+    if (idx >= total) return;//avoiud overflow
 
+    //bias
     int col = idx % N;
     float x = data[idx] + bias[col];
 
@@ -22,8 +23,8 @@ __global__ void bias_gelu_kernel(
     data[idx] = x * 0.5f * (1.0f + tanh_val);
 }
 
+//init (connecting to cublas (handle))
 static cublasHandle_t g_cublas_handle = nullptr;
-
 void init_cublas() {
     if (!g_cublas_handle) {
         cublasCreate(&g_cublas_handle);
@@ -39,7 +40,7 @@ void launch_fused_gemm_gelu_fp32(
     cudaStream_t stream)
 {
     init_cublas();
-    cublasSetStream(g_cublas_handle, stream);
+    cublasSetStream(g_cublas_handle, stream);//ensure they are in the right stream
 
     // C = A * B^T using cuBLAS (column-major, so we do B*A^T)
     float alpha = 1.0f, beta = 0.0f;
