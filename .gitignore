@@ -4,4 +4,5 @@
 __pycache__/
 *.pyc
 plugin/build/
-results/*.nsys-rep
+results/profile/*.nsys-rep
+.hf_home/
