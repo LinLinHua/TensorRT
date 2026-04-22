@@ -62,5 +62,3 @@ The plugin work demonstrates correct IPluginV3 implementation and graph rewritin
 - PyTorch: 2.4.0+cu121
 - Python: 3.12
 - OS: Ubuntu 22.04
-
-## Project Structure
