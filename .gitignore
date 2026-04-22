@@ -6,3 +6,13 @@ __pycache__/
 plugin/build/
 results/profile/*.nsys-rep
 .hf_home/
+.hf_home/
+*.trt
+*.onnx
+plugin/build/
+__pycache__/
+.hf_home/
+*.trt
+*.onnx
+plugin/build/
+__pycache__/
