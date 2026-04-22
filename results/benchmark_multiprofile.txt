@@ -1,4 +1,0 @@
-Multi-profile benchmark:
-Batch=1 | Profile=0 | mean=1.98ms p50=1.88ms p99=2.96ms | Throughput=504.8 samples/sec
-Batch=8 | Profile=1 | mean=8.56ms p50=8.54ms p99=9.44ms | Throughput=934.6 samples/sec
-Batch=32 | Profile=2 | mean=34.38ms p50=34.45ms p99=35.21ms | Throughput=930.8 samples/sec

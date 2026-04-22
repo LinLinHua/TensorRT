@@ -1,7 +1,0 @@
-Running INT8 benchmark...
-
-Running INT8 benchmark...
-
-Batch=1 | Seq=128 | mean=3.23ms  p50=3.47ms  p99=5.27ms | Throughput=309.8 samples/sec
-Batch=8 | Seq=128 | mean=11.92ms  p50=11.88ms  p99=12.13ms | Throughput=671.2 samples/sec
-Batch=32 | Seq=128 | mean=47.49ms  p50=47.39ms  p99=49.51ms | Throughput=673.9 samples/sec
