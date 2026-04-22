@@ -71,8 +71,8 @@ class BertEntropyCalibrator(trt.IInt8EntropyCalibrator2):
 if __name__ == "__main__":
     # Build INT8 engine
     TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
-    ONNX_PATH = "/workspace/trt_bert/bert_base.onnx"
-    ENGINE_PATH = "/workspace/trt_bert/bert_int8.trt"
+    ONNX_PATH = "/workspace/bert_base.onnx"
+    ENGINE_PATH = "/workspace/bert_int8.trt"
 
     builder = trt.Builder(TRT_LOGGER)
     network = builder.create_network(

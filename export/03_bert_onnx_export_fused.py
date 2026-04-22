@@ -1,69 +1,67 @@
-import torch
-import torch.nn as nn
-from transformers import BertModel, BertTokenizer
-from typing import ClassVar, List
+import ctypes
+import tensorrt as trt
+import onnx
+import onnx_graphsurgeon as gs
 
-class FusedGemmGeluPlugin(nn.Module):
-    """Fused Linear + GELU module that exports as FusedGemmGeluPlugin op."""
-    
-    def __init__(self, linear: nn.Linear):
-        super().__init__()
-        self.in_features = linear.in_features
-        self.out_features = linear.out_features
-        self.weight = nn.Parameter(linear.weight.data.clone())
-        self.bias = nn.Parameter(linear.bias.data.clone())
+ctypes.CDLL("/workspace/plugin/build/libgelu_plugin.so", mode=ctypes.RTLD_GLOBAL)
+TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+trt.init_libnvinfer_plugins(TRT_LOGGER, "")
 
-    def forward(self, x):
-        out = torch.nn.functional.linear(x, self.weight, self.bias)
-        return torch.nn.functional.gelu(out)
+ONNX_PATH = "/workspace/bert_base_bias_gelu.onnx"
+PLUGIN_ONNX_PATH = "/workspace/bert_base_fused_ffn.onnx"
 
-def replace_linear_gelu(model):
-    from transformers.models.bert.modeling_bert import BertIntermediate
-    for name, module in model.named_modules():
-        if isinstance(module, BertIntermediate):
-            fused = FusedGemmGeluPlugin(module.dense)
-            module.fused = fused
-            module.dense = nn.Identity()
-            module.intermediate_act_fn = nn.Identity()
 
-            def make_forward(f):
-                def forward(self, x):
-                    return f(x)
-                return forward
+@gs.Graph.register()
+def replace_with_fused_ffn_plugin(self, inputs, outputs):
+    for out in outputs:
+        out.inputs.clear()
+    return self.layer(op="FusedGemmGeluPlugin", inputs=inputs, outputs=outputs)
 
-            import types
-            module.forward = types.MethodType(make_forward(fused), module)
 
-print("Loading BERT-base...")
-model_name = "bert-base-uncased"
-tokenizer = BertTokenizer.from_pretrained(model_name)
-model = BertModel.from_pretrained(model_name)
-model.eval()
+def main():
+    print("Loading ONNX graph...")
+    graph = gs.import_onnx(onnx.load(ONNX_PATH))
 
-replace_linear_gelu(model)
-print("Linear + GELU replaced with FusedGemmGeluPlugin")
+    # Anchor on GeluBiasPluginV3. If its first input comes from a MatMul,
+    # fuse MatMul + bias + GELU into a single FusedGemmGeluPlugin.
+    bias_gelu_nodes = [n for n in graph.nodes if n.op == "GeluBiasPluginV3"]
+    print(f"Found {len(bias_gelu_nodes)} GeluBiasPluginV3 nodes")
 
-inputs = tokenizer("Hello, this is a TensorRT test.", return_tensors="pt",
-                   padding="max_length", max_length=128)
-input_ids = inputs["input_ids"]
-attention_mask = inputs["attention_mask"]
+    count = 0
+    for bg in bias_gelu_nodes:
+        if len(bg.inputs) < 2:
+            continue
+        gemm_output = bg.inputs[0]
+        bias_tensor = bg.inputs[1]
 
-print("Exporting to ONNX...")
-with torch.no_grad():
-    torch.onnx.export(
-        model,
-        (input_ids, attention_mask),
-        "bert_base_fused.onnx",
-        input_names=["input_ids", "attention_mask"],
-        output_names=["last_hidden_state", "pooler_output"],
-        dynamic_axes={
-            "input_ids": {0: "batch_size"},
-            "attention_mask": {0: "batch_size"},
-            "last_hidden_state": {0: "batch_size"},
-            "pooler_output": {0: "batch_size"},
-        },
-        opset_version=17,
-        do_constant_folding=False,
-        export_modules_as_functions={FusedGemmGeluPlugin},
-    )
-print("Done! bert_base_fused.onnx saved.")
+        if not gemm_output.inputs:
+            continue
+        matmul = gemm_output.inputs[0]
+        if matmul.op != "MatMul":
+            continue
+
+        actual_x = None
+        weight = None
+        for inp in matmul.inputs:
+            if isinstance(inp, gs.Constant):
+                weight = inp
+            else:
+                actual_x = inp
+        if actual_x is None or weight is None:
+            continue
+
+        ffn_output = bg.outputs[0]
+        graph.replace_with_fused_ffn_plugin(
+            inputs=[actual_x, weight, bias_tensor],
+            outputs=[ffn_output],
+        )
+        count += 1
+
+    print(f"Replaced {count} patterns with FusedGemmGeluPlugin")
+    graph.cleanup().toposort()
+    onnx.save(gs.export_onnx(graph), PLUGIN_ONNX_PATH)
+    print(f"Saved to {PLUGIN_ONNX_PATH}")
+
+
+if __name__ == "__main__":
+    main()

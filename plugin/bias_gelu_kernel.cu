@@ -1,7 +1,7 @@
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 
-'''
+/*
 Bert model has FFN layer;
 FFN layer＝Linear(GEMM+bias)+GELU+Linear
 
@@ -13,7 +13,7 @@ input>GEMM>+bias>GELU>output
 
 Here: bias+GELU
 
-'''
+*/
 __device__ inline float gelu_f32(float x) {
     const float k = 0.7978845608f;
     float tanh_val = tanhf(k * (x + 0.044715f * x * x * x));

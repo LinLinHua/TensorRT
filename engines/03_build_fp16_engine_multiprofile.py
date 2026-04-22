@@ -2,8 +2,8 @@ import tensorrt as trt
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
-ONNX_PATH = "/workspace/trt_bert/bert_base.onnx"
-ENGINE_PATH = "/workspace/trt_bert/bert_fp16_multiprofile.trt"
+ONNX_PATH = "/workspace/bert_base.onnx"
+ENGINE_PATH = "/workspace/bert_fp16_multiprofile.trt"
 
 builder = trt.Builder(TRT_LOGGER)
 network = builder.create_network(

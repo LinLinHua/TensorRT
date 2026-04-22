@@ -1,73 +1,63 @@
-import torch
-import torch.nn as nn
-from transformers import BertModel, BertTokenizer
+import ctypes
+import tensorrt as trt
+import onnx
+import onnx_graphsurgeon as gs
 
-class GeluBiasFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x, bias):
-        return torch.nn.functional.gelu(x + bias)
+ctypes.CDLL("/workspace/plugin/build/libgelu_plugin.so", mode=ctypes.RTLD_GLOBAL)
+TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+trt.init_libnvinfer_plugins(TRT_LOGGER, "")
 
-    @staticmethod
-    def symbolic(g, x, bias):
-        return g.op("GeluBiasPluginV3", x, bias)
+ONNX_PATH = "/workspace/bert_base_gelu.onnx"
+PLUGIN_ONNX_PATH = "/workspace/bert_base_bias_gelu.onnx"
 
-class GeluBiasModule(nn.Module):
-    def __init__(self, bias: nn.Parameter):
-        super().__init__()
-        self.bias = nn.Parameter(bias.data.clone())
 
-    def forward(self, x):
-        return GeluBiasFunction.apply(x, self.bias)
+@gs.Graph.register()
+def replace_with_bias_gelu_plugin(self, inputs, outputs):
+    for out in outputs:
+        out.inputs.clear()
+    return self.layer(op="GeluBiasPluginV3", inputs=inputs, outputs=outputs)
 
-def replace_gelu_with_bias_gelu(model):
-    from transformers.models.bert.modeling_bert import BertIntermediate
-    for name, module in model.named_modules():
-        if isinstance(module, BertIntermediate):
-            bias = module.dense.bias
-            # Remove bias from Linear, handle it in plugin
-            module.dense.bias = None
-            module.gelu_bias = GeluBiasModule(bias)
-            original_act = module.intermediate_act_fn
 
-            def make_forward(gelu_bias_mod):
-                def forward(self, x):
-                    x = self.dense(x)
-                    return gelu_bias_mod(x)
-                return forward
+def main():
+    print("Loading ONNX graph...")
+    graph = gs.import_onnx(onnx.load(ONNX_PATH))
 
-            import types
-            module.forward = types.MethodType(make_forward(module.gelu_bias), module)
+    # Anchor on GeluPluginV3 nodes. If its input comes from an Add(x, bias),
+    # fuse both into a single GeluBiasPluginV3.
+    gelu_nodes = [n for n in graph.nodes if n.op == "GeluPluginV3"]
+    print(f"Found {len(gelu_nodes)} GeluPluginV3 nodes")
 
-print("Loading BERT-base...")
-model_name = "bert-base-uncased"
-tokenizer = BertTokenizer.from_pretrained(model_name)
-model = BertModel.from_pretrained(model_name)
-model.eval()
+    count = 0
+    for gelu in gelu_nodes:
+        gelu_input = gelu.inputs[0]
+        if not gelu_input.inputs:
+            continue
+        add_node = gelu_input.inputs[0]
+        if add_node.op != "Add":
+            continue
 
-replace_gelu_with_bias_gelu(model)
-print("Bias+GELU replaced with GeluBiasPluginV3")
+        actual_x = None
+        bias_tensor = None
+        for inp in add_node.inputs:
+            if isinstance(inp, gs.Constant):
+                bias_tensor = inp
+            else:
+                actual_x = inp
+        if actual_x is None or bias_tensor is None:
+            continue
 
-inputs = tokenizer("Hello, this is a TensorRT test.", return_tensors="pt",
-                   padding="max_length", max_length=128)
-input_ids = inputs["input_ids"]
-attention_mask = inputs["attention_mask"]
+        gelu_output = gelu.outputs[0]
+        graph.replace_with_bias_gelu_plugin(
+            inputs=[actual_x, bias_tensor],
+            outputs=[gelu_output],
+        )
+        count += 1
 
-print("Exporting to ONNX...")
-with torch.no_grad():
-    torch.onnx.export(
-        model,
-        (input_ids, attention_mask),
-        "bert_base_bias_gelu.onnx",
-        input_names=["input_ids", "attention_mask"],
-        output_names=["last_hidden_state", "pooler_output"],
-        dynamic_axes={
-            "input_ids": {0: "batch_size"},
-            "attention_mask": {0: "batch_size"},
-            "last_hidden_state": {0: "batch_size"},
-            "pooler_output": {0: "batch_size"},
-        },
-        opset_version=17,
-        do_constant_folding=False,
-        operator_export_type=torch.onnx.OperatorExportTypes.ONNX_FALLTHROUGH,
-    )
-print("Done! bert_base_bias_gelu.onnx saved.")
+    print(f"Replaced {count} patterns with GeluBiasPluginV3")
+    graph.cleanup().toposort()
+    onnx.save(gs.export_onnx(graph), PLUGIN_ONNX_PATH)
+    print(f"Saved to {PLUGIN_ONNX_PATH}")
+
+
+if __name__ == "__main__":
+    main()

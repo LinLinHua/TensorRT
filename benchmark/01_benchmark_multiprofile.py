@@ -4,7 +4,7 @@ import numpy as np
 import time
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
-ENGINE_PATH = "/workspace/trt_bert/bert_fp16_multiprofile.trt"
+ENGINE_PATH = "/workspace/bert_fp16_multiprofile.trt"
 
 def benchmark(engine, batch_size, seq_len=128, profile_idx=0, n_runs=200, warmup=50):
     context = engine.create_execution_context()

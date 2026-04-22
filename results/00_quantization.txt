@@ -1,0 +1,9 @@
+FP32 | Batch=1 | mean=2.93ms  p50=2.52ms  p99=3.97ms | Throughput=341.1 samples/sec
+FP32 | Batch=8 | mean=3.19ms  p50=3.19ms  p99=3.23ms | Throughput=2509.4 samples/sec
+FP32 | Batch=32 | mean=12.13ms  p50=12.09ms  p99=12.94ms | Throughput=2639.1 samples/sec
+FP16 | Batch=1 | mean=1.17ms  p50=1.17ms  p99=1.17ms | Throughput=855.4 samples/sec
+FP16 | Batch=8 | mean=1.56ms  p50=1.58ms  p99=1.58ms | Throughput=5112.8 samples/sec
+FP16 | Batch=32 | mean=5.33ms  p50=5.31ms  p99=5.39ms | Throughput=6003.7 samples/sec
+INT8+FP16 | Batch=1 | mean=1.18ms  p50=1.18ms  p99=1.19ms | Throughput=844.1 samples/sec
+INT8+FP16 | Batch=8 | mean=1.56ms  p50=1.57ms  p99=1.57ms | Throughput=5123.9 samples/sec
+INT8+FP16 | Batch=32 | mean=5.39ms  p50=5.39ms  p99=5.42ms | Throughput=5940.7 samples/sec

@@ -3,9 +3,15 @@
 #include <cuda_runtime.h>
 #include <string>
 #include <vector>
+#include <cuda_fp16.h>
+#include <cassert>
 
 void launch_fused_gemm_gelu_fp32(
     const float* A, const float* B, const float* bias, float* C,
+    int M, int K, int N, cudaStream_t stream);
+
+void launch_fused_gemm_gelu_fp16(
+    const __half* A, const __half* B, const __half* bias, __half* C,
     int M, int K, int N, cudaStream_t stream);
 
 class FusedGemmGeluPlugin : public nvinfer1::IPluginV3,
@@ -40,7 +46,7 @@ public:
     int32_t getOutputDataTypes(
         nvinfer1::DataType* outputTypes, int32_t nbOutputs,
         const nvinfer1::DataType* inputTypes, int32_t nbInputs) const noexcept override {
-        outputTypes[0] = nvinfer1::DataType::kFLOAT;
+        outputTypes[0] = inputTypes[0];
         return 0;
     }
 
@@ -49,18 +55,29 @@ public:
         const nvinfer1::DimsExprs* shapeInputs, int32_t nbShapeInputs,
         nvinfer1::DimsExprs* outputs, int32_t nbOutputs,
         nvinfer1::IExprBuilder& exprBuilder) noexcept override {
-        // Output shape: [batch * seq, N] where N is from weight [K, N]
-        outputs[0].nbDims = 2;
-        outputs[0].d[0] = inputs[0].d[0]; // M = batch * seq
-        outputs[0].d[1] = inputs[1].d[1]; // N from weight
+        outputs[0].nbDims = 3;
+        outputs[0].d[0] = inputs[0].d[0];  // batch
+        outputs[0].d[1] = inputs[0].d[1];  // seq
+        outputs[0].d[2] = inputs[1].d[1];  // N, weight=[out_features,in_features]^T (cublas)
         return 0;
     }
 
     bool supportsFormatCombination(
         int32_t pos, const nvinfer1::DynamicPluginTensorDesc* inOut,
         int32_t nbInputs, int32_t nbOutputs) noexcept override {
-        return inOut[pos].desc.type == nvinfer1::DataType::kFLOAT &&
-               inOut[pos].desc.format == nvinfer1::TensorFormat::kLINEAR;
+        assert(0 <= pos && pos < nbInputs + nbOutputs);
+
+        // Accept FP32 or FP16 in linear layout
+        bool valid = (inOut[pos].desc.format == nvinfer1::TensorFormat::kLINEAR) &&
+                    (inOut[pos].desc.type == nvinfer1::DataType::kFLOAT ||
+                    inOut[pos].desc.type == nvinfer1::DataType::kHALF);
+
+        // All tensors (weight, bias, output) must match input x at pos 0
+        if (pos > 0) {
+            valid &= (inOut[pos].desc.type == inOut[0].desc.type &&
+                    inOut[pos].desc.format == inOut[0].desc.format);
+        }
+        return valid;
     }
 
     int32_t configurePlugin(

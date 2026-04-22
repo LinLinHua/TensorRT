@@ -1,0 +1,16 @@
+FP32 Baseline             | batch= 1 |   2.86ms |   349.8/sec
+FP32 Baseline             | batch= 8 |   3.17ms |  2526.0/sec
+FP32 GeluPluginV3         | batch= 1 |   3.11ms |   321.7/sec
+FP32 GeluPluginV3         | batch= 8 |   3.81ms |  2097.3/sec
+FP32 GeluBias             | batch= 1 |   2.66ms |   375.6/sec
+FP32 GeluBias             | batch= 8 |   3.54ms |  2261.4/sec
+FP32 FusedFFN             | batch= 1 |   2.58ms |   387.2/sec
+FP32 FusedFFN             | batch= 8 |   6.44ms |  1242.9/sec
+FP16 Baseline             | batch= 1 |   1.16ms |   860.4/sec
+FP16 Baseline             | batch= 8 |   1.54ms |  5193.1/sec
+FP16 GeluPluginV3         | batch= 1 |   1.44ms |   693.2/sec
+FP16 GeluPluginV3         | batch= 8 |   1.94ms |  4116.2/sec
+FP16 GeluBias             | batch= 1 |   1.42ms |   704.2/sec
+FP16 GeluBias             | batch= 8 |   1.98ms |  4042.6/sec
+FP16 FusedFFN             | batch= 1 |   1.19ms |   839.1/sec
+FP16 FusedFFN             | batch= 8 |   1.82ms |  4385.3/sec

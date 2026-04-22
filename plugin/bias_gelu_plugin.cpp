@@ -1,4 +1,4 @@
-#include "gelu_plugin.h"
+#include "bias_gelu_plugin.h"
 #include <cstdio>
 
 
@@ -9,15 +9,11 @@ int32_t GeluBiasPluginV3::enqueue(
     const nvinfer1::PluginTensorDesc* outputDesc,
     const void* const* inputs, void* const* outputs,
     void* workspace, cudaStream_t stream) noexcept {
-    // calculate how much element in this tensor
-    // inputs[0]: x [batch, seq, hidden_size]
-    // inputs[1]: bias [hidden_size]
     int n = 1;
     for (int i = 0; i < inputDesc[0].dims.nbDims; i++)
         n *= inputDesc[0].dims.d[i];
     int hidden_size = inputDesc[0].dims.d[inputDesc[0].dims.nbDims - 1];
 
-    //compute in GPU
     if (inputDesc[0].type == nvinfer1::DataType::kFLOAT) {
         launch_gelu_bias_fp32(
             static_cast<const float*>(inputs[0]),
@@ -34,10 +30,4 @@ int32_t GeluBiasPluginV3::enqueue(
     return 0;
 }
 
-// ─── Plugin registration ──────────────────────────────────────────────────────
-
-__attribute__((constructor)) static void registerPlugins() {
-    static GeluBiasPluginV3Creator geluBiasCreator;
-    fprintf(stderr, "[GeluPlugin] Registering GeluBiasPluginV3...\n");
-    getPluginRegistry()->registerCreator(geluBiasCreator, "");
-}
+REGISTER_TENSORRT_PLUGIN(GeluBiasPluginV3Creator);

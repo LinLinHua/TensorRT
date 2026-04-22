@@ -1,8 +1,8 @@
 import tensorrt as trt
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
-ONNX_PATH = "/workspace/trt_bert/bert_base.onnx"
-ENGINE_PATH = "/workspace/trt_bert/bert_fp16.trt"
+ONNX_PATH = "/workspace/bert_base.onnx"
+ENGINE_PATH = "/workspace/bert_fp16.trt"
 
 def build_fp16_engine():
     builder = trt.Builder(TRT_LOGGER)

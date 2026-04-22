@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <cstdio>
+#include <cassert>
 
 // Fused bias + GELU
 void launch_gelu_bias_fp32(const float* input, const float* bias, float* output,
@@ -43,7 +44,7 @@ public:
     int32_t getOutputDataTypes(
         nvinfer1::DataType* outputTypes, int32_t nbOutputs,
         const nvinfer1::DataType* inputTypes, int32_t nbInputs) const noexcept override {
-        outputTypes[0] = nvinfer1::DataType::kFLOAT;
+        outputTypes[0] = inputTypes[0];
         return 0;
     }
 
@@ -52,16 +53,25 @@ public:
         const nvinfer1::DimsExprs* shapeInputs, int32_t nbShapeInputs,
         nvinfer1::DimsExprs* outputs, int32_t nbOutputs,
         nvinfer1::IExprBuilder& exprBuilder) noexcept override {
-        outputs[0] = inputs[0];  // Output same shape as input x
+        outputs[0] = inputs[0];
         return 0;
     }
 
     bool supportsFormatCombination(
         int32_t pos, const nvinfer1::DynamicPluginTensorDesc* inOut,
         int32_t nbInputs, int32_t nbOutputs) noexcept override {
-        return (inOut[pos].desc.type == nvinfer1::DataType::kFLOAT ||
-                inOut[pos].desc.type == nvinfer1::DataType::kHALF)&&
-               inOut[pos].desc.format == nvinfer1::TensorFormat::kLINEAR;
+        assert(0 <= pos && pos < nbInputs + nbOutputs);
+
+        bool valid = (inOut[pos].desc.format == nvinfer1::TensorFormat::kLINEAR) &&
+                     (inOut[pos].desc.type == nvinfer1::DataType::kFLOAT ||
+                      inOut[pos].desc.type == nvinfer1::DataType::kHALF);
+
+        // bias (pos=1) and output (pos=2) must match input x (pos=0)
+        if (pos > 0) {
+            valid &= (inOut[pos].desc.type == inOut[0].desc.type &&
+                      inOut[pos].desc.format == inOut[0].desc.format);
+        }
+        return valid;
     }
 
     int32_t configurePlugin(
